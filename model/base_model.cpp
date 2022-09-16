@@ -127,19 +127,19 @@ void BaseModel::create() {
 	int fieldsLng = vesFields.size();
 	int constraintLng = vesConstraint.size();
 	int lng = fieldsLng + constraintLng;
-	int maxLng = lng - 1; 
+	int maxLng = lng - 1;
 	int i = 0;
-	int constraintI = 0;  
+	int constraintI = 0;
 	for (i = 0; i < lng; i++)
 	{
 		std::string field;
 		if (i < fieldsLng) {
 			field = vesFields[i];
 		}
-		else { 
-			field = vesConstraint[constraintI]; 
+		else {
+			field = vesConstraint[constraintI];
 			constraintI++;
-		} 
+		}
 		auto iter = mapFieldsValue.find(field);
 		if (iter != mapFieldsValue.end()) {
 			createSql += field + " " + iter->second;
@@ -329,17 +329,22 @@ bool BaseModel::save(const nlohmann::json &data) {
 
 	bool isUp = global_vecSqlWhere.size() > 0;
 
+	time_t t = time(NULL);
+
+	std::string fields = "";
+	std::string values = t + "";
+
 	// 是否更新
 	if (isUp) {
 		global_sql = " UPDATE " + tbName + " ";
+		fields += "update_time";
 	}
 	else {
 		global_sql = " INSERT or IGNORE INTO " + tbName + " ";
+		fields += "create_time,update_time";
+		values += "," + t; 
 	}
-
-	std::string fields = "";
-	std::string values = "";
-
+	 
 	for (auto& item : data.items()) {
 		auto field = item.key();
 		auto iter = mapFieldsValue.find(field);
