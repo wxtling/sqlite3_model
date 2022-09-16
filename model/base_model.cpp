@@ -332,7 +332,8 @@ bool BaseModel::save(const nlohmann::json &data) {
 	time_t t = time(NULL);
 
 	std::string fields = "";
-	std::string values = t + "";
+	std::string values = "";
+
 
 	// 是否更新
 	if (isUp) {
@@ -342,7 +343,7 @@ bool BaseModel::save(const nlohmann::json &data) {
 	else {
 		global_sql = " INSERT or IGNORE INTO " + tbName + " ";
 		fields += "create_time,update_time";
-		values += "," + t; 
+		values += std::to_string(t) + "," + std::to_string(t);
 	}
 	 
 	for (auto& item : data.items()) {
