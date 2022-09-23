@@ -1,6 +1,6 @@
 #include "stdafx.h" 
 #include "base_sqlite.h"
-#include <sqlite3.h> 
+#include "../../sqlite/sqlite3.h"
 
 
 int BaseSqlite::runSql(const char *sql, const SqlCallback &callback) {
@@ -8,15 +8,14 @@ int BaseSqlite::runSql(const char *sql, const SqlCallback &callback) {
 	int result = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
 
 	if (isOpenLog) {
-		std::string msg = "执行sql:\n";
+		std::string msg ="执行 SQL：\n";
 		msg += sql;
-		msg += "\n";
-		fprintf(stdout, msg.c_str());
+		LOG_INFO(_ModuleTask,"%s", msg.c_str());
 	}
-	 
+
 	if (result == SQLITE_OK) {
-		if (isOpenLog) {
-			fprintf(stdout, "结果：OK \n\n");
+		if (isOpenLog) { 
+			LOG_INFO(_ModuleTask, "结果：OK \n\n");
 		}
 		// 执行该语句
 		while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -26,29 +25,26 @@ int BaseSqlite::runSql(const char *sql, const SqlCallback &callback) {
 		}
 	}
 	else {
-		if (isOpenLog) {
-			std::string msg = "结果：error : " + result;
-			msg += "\n\n";
-			fprintf(stdout, msg.c_str());
-		}
-	} 
+		LOG_INFO(_ModuleTask, "结果：error : [%d] ", result); 
+	}
 	sqlite3_finalize(stmt);
 	return result;
 }
 
-void BaseSqlite::open() {
+void BaseSqlite::open(const std::string &file) {
 	if (isOpen) {
 		return;
 	}
-	rc = sqlite3_open_v2("app_user_info.db", &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_SHAREDCACHE, NULL);
+
+	rc = sqlite3_open_v2(file.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_SHAREDCACHE, NULL);
 	if (rc == SQLITE_OK) {
-		isOpen = true;
-		fprintf(stdout, "打开数据库连接成功\n");
+		isOpen = true; 
+		LOG_INFO(_ModuleTask, "打开数据库连接成功\n");
 	}
 	else {
-		fprintf(stdout, "打开数据库连接失败\n");
+		LOG_INFO(_ModuleTask, "打开数据库连接失败\n"); 
 		exit(0);
-	}
+	}  
 }
 
 

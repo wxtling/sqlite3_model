@@ -7,7 +7,6 @@
 #include "base_sqlite.h"
 #include <map> 
 
-
 #pragma warning(disable:4996)
 
 /*
@@ -30,7 +29,7 @@ void BaseModel::setFields(const char*keyValue[][2], int len)
 			type = "real";
 		}
 
-		if (key == "CONSTRAINT") {
+		if (std::string(key) == "CONSTRAINT") {
 			vesConstraint.push_back(key);
 		}
 		else {
@@ -69,16 +68,24 @@ void  BaseModel::setSreateOtherSql(const char *keyValue[], int len) {
 /*
 * 设置表名
 */
-std::string BaseModel::setTbName(std::string name) {
+std::string BaseModel::setTbName(const std::string &name) {
 	tbName = name;
 	return tbName;
+}
+
+/*
+* 设置主键名
+*/
+std::string BaseModel::setPk(const std::string &id) {
+	pk = id;
+	return pk;
 }
 
 /*
 * 判断表是否存在
 */
 bool BaseModel::getTableExist() {
-	BaseSqlite ins = BaseSqlite::getInstance();
+	BaseSqlite &ins = BaseSqlite::getInstance();
 	std::string table_name = tbName;
 	std::string tableSql = "SELECT name FROM sqlite_master WHERE type='table' AND name = ";
 	tableSql += +"'" + table_name + "'";
@@ -93,11 +100,15 @@ bool BaseModel::getTableExist() {
 /*
 * 创建表
 */
-void BaseModel::create() {
-	BaseSqlite ins = BaseSqlite::getInstance();
+void BaseModel::create(bool isForceAdd) {
+	BaseSqlite &ins = BaseSqlite::getInstance();
 
 	// 判断表是否存在
 	bool isTableExist = getTableExist();
+
+	if (isForceAdd == false && isTableExist) {
+		return;
+	}
 
 	/* 临时表处理 */
 	std::string temporaryTables = "";
@@ -318,13 +329,32 @@ nlohmann::json BaseModel::getDealWith(sqlite3_stmt *stmt, std::vector<std::strin
 	return item;
 }
 
-// 保存数据
-bool BaseModel::save(const nlohmann::json &data) {
-	BaseSqlite ins = BaseSqlite::getInstance();
 
-	auto id = data.find(pk);
-	if (id != data.end()) {
-		where(pk, std::to_string(data[pk].get<int>()));
+std::string BaseModel::getJsonValue(const nlohmann::json &data, const std::string &field, const std::string &defaultValue) {
+	auto item = data.find(field);  
+	std::string result = defaultValue;
+	if (item != data.end()) {
+		auto value = item.value();
+		if (value.is_string()) {
+			result = value.get<std::string>();
+		}
+		else if (value.is_number_integer()) {
+			result = std::to_string(value.get<int>());
+		}
+		else if (value.is_number_float()) {
+			result = std::to_string(value.get<float>());
+		}
+	}
+	return result;
+}
+
+// 保存数据
+int BaseModel::save(const nlohmann::json &data,bool isUpdata) {
+	BaseSqlite &ins = BaseSqlite::getInstance();
+	std::string id = getJsonValue(data, pk);
+
+	if (isUpdata && id != "") {
+		where(pk, id);
 	}
 
 	bool isUp = global_vecSqlWhere.size() > 0;
@@ -334,7 +364,6 @@ bool BaseModel::save(const nlohmann::json &data) {
 	std::string fields = "";
 	std::string values = "";
 
-
 	// 是否更新
 	if (isUp) {
 		global_sql = " UPDATE " + tbName + " ";
@@ -342,21 +371,17 @@ bool BaseModel::save(const nlohmann::json &data) {
 	}
 	else {
 		global_sql = " INSERT or IGNORE INTO " + tbName + " ";
-
 		fields += "create_time,update_time";
 		values += std::to_string(t) + "," + std::to_string(t);
 	}
-	 
+
 	for (auto& item : data.items()) {
 		auto field = item.key();
 		auto iter = mapFieldsValue.find(field);
 		if (iter != mapFieldsValue.end())
 		{
 			auto key = item.key();
-
-			std::string val = item.value().dump();
-			val.erase(std::remove(val.begin(), val.end(), '"'), val.end());
-
+			std::string val = getJsonValue(data, key);
 			if (values != "") {
 				values += ",";
 			}
@@ -386,18 +411,30 @@ bool BaseModel::save(const nlohmann::json &data) {
 		global_sql += "(" + values + ");";
 	}
 
-
-	int result = ins.runSql(global_sql.c_str());
-	clearCacheSql();
-	if (result == SQLITE_OK) {
-		return true;
+	ins.runSql(global_sql.c_str());
+	
+	// 获取主键名 id
+	int pkId = 0; 
+	if (isUp) {
+		std::string last_insert_rowid = "select "+ pk +" from " + tbName + " "+ getWhereSql() + " LIMIT 1";
+		ins.runSql(last_insert_rowid.c_str(), [&pkId](sqlite3_stmt *stmt) {
+			pkId = sqlite3_column_int(stmt, 0);
+		}); 
 	}
-	return  false;
+	else {
+		std::string last_insert_rowid = "select last_insert_rowid() from " + tbName + " LIMIT 1";
+		ins.runSql(last_insert_rowid.c_str(), [&pkId](sqlite3_stmt *stmt) {
+			pkId = sqlite3_column_int(stmt, 0);
+		}); 
+	}
+	 
+	clearCacheSql(); 
+	return pkId;
 }
 
 // 查询
 nlohmann::json BaseModel::get(int id) {
-	BaseSqlite ins = BaseSqlite::getInstance();
+	BaseSqlite &ins = BaseSqlite::getInstance();
 	nlohmann::json result;
 
 	if (id != 0) {
@@ -422,6 +459,30 @@ nlohmann::json BaseModel::get(int id) {
 	return result;
 }
 
+nlohmann::json BaseModel::first(int id) { 
+	auto info = get(id);
+
+	nlohmann::json result;
+
+	if (!info.is_null()) {
+		for (auto& item : info) {
+			result =  item;
+			break;
+		} 
+	} 
+	
+	return result; 
+}
+
+std::string BaseModel::value(std::string field, const std::string &defaultValue) {
+	select(field); 
+	
+	auto info = first(); 
+
+	return getJsonValue(info, field, defaultValue);
+}
+
+
 // 清除缓存的sql
 void BaseModel::clearCacheSql() {
 	global_sql = "";
@@ -429,12 +490,15 @@ void BaseModel::clearCacheSql() {
 	global_sqlOrder = "";
 
 	global_sqlSelect.clear();
-	global_vecSqlWhere.clear();
+
+	if (isReserveWhereSql == false) {
+		global_vecSqlWhere.clear(); 
+	}
 }
 
 // 删除
 bool BaseModel::del(int id) {
-	BaseSqlite ins = BaseSqlite::getInstance();
+	BaseSqlite &ins = BaseSqlite::getInstance();
 	if (id != 0) {
 		where(pk, std::to_string(id));
 	}
@@ -454,7 +518,7 @@ bool BaseModel::del(int id) {
 
 // 删除所有记录
 bool BaseModel::deleteAll() {
-	BaseSqlite ins = BaseSqlite::getInstance();
+	BaseSqlite &ins = BaseSqlite::getInstance();
 	global_sql = " DELETE FROM " + tbName + " ";
 	int result = ins.runSql(global_sql.c_str());
 	clearCacheSql();

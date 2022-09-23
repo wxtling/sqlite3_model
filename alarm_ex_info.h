@@ -3,8 +3,7 @@
 #include <string>
 #include <algorithm>
 #include "model/base_model.h"
-
-
+ 
 class AlarmExInfo :public BaseModel {
 
 public:

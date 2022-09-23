@@ -1,13 +1,13 @@
 #pragma once
 #include <string>  
-#include <sqlite3.h> 
+#include "../../sqlite/sqlite3.h"
 #include <functional>
 
 class BaseSqlite {
 
 private:
-	BaseSqlite() {
-		open();
+	BaseSqlite() 
+	{ 
 	} 
 
 	sqlite3 *db;
@@ -16,7 +16,7 @@ private:
 	bool isOpen = false;
 	
 	void close();
-	void open();
+
 public:
 	static BaseSqlite &getInstance()
 	{
@@ -28,5 +28,6 @@ public:
 
 	using SqlCallback = std::function<void(sqlite3_stmt *stmt)>;
 
+	void open(const std::string &file);
 	int runSql(const char * sql, const SqlCallback &callback = nullptr);
 };

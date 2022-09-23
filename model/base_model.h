@@ -2,16 +2,18 @@
 #include <vector>
 #include "stdafx.h" 
 #include <map>  
-#include "../nlohmann/json.hpp"
+#include "util/json.hpp"
 #include <memory>
-#include <sqlite3.h> 
+#include "../../sqlite/sqlite3.h"
+
 #include <algorithm>
 
 class BaseModel:public std::enable_shared_from_this<BaseModel> {
 
 public:  
 	// 创建表
-	void create();
+	// isForceAdd 是否强制创建表
+	void create(bool isForceAdd = false);
 	 
 	// 条件
 	std::shared_ptr<BaseModel> where(const std::string &field, const std::string &value, const std::string &formula = "=");
@@ -29,16 +31,22 @@ public:
 	std::shared_ptr<BaseModel> select(const std::string &field);
 
 	// 保存数据 新增/修改 sqlite3_prepare_v2 的结果
-	bool save(const nlohmann::json &data);
+	int save(const nlohmann::json &data, bool isUpdata = true);
 
 	// 查询
-	nlohmann::json get(int id = 0);
+	nlohmann::json get(int id = 0); 
+	nlohmann::json first(int id = 0); // 第一条
+	std::string value(std::string field, const std::string &defaultValue = "");// 
 
+	
 	// 删除
 	bool del(int id = 0);
 
 	// 全部删除
 	bool deleteAll();  
+
+	std::string getJsonValue(const nlohmann::json &data, const std::string &field, const std::string &defaultValue = "");
+
 protected:
 	void setFields(const char*keyValue[][2], int len);
 	void setSreateOtherSql(const char*keyValue[], int len);
@@ -55,11 +63,12 @@ protected:
 	bool is_del_temporary_tables = true; // 删除临时表
 
 	std::string tbName; // 表名称  
-	std::string setTbName(std::string name); // 设置表名称
+	std::string setTbName(const std::string &name); // 设置表名称
 
 	// 主键名
 	std::string pk = "id";
-	 
+	std::string setPk(const std::string &id); // 设置主键名
+
 	// 判断表是否存在
 	bool getTableExist();
 
@@ -69,6 +78,10 @@ protected:
 
 	// 清除缓存sql  sql  sqlLimit  sqlOrder  vecSqlWhere
 	void clearCacheSql();
+
+	// 保留判断条件
+	bool isReserveWhereSql = false;
+
 private:
 	std::string global_sql = "";
 	std::string global_sqlLimit = "";
@@ -78,4 +91,5 @@ private:
 	std::vector<std::string> global_vecSqlWhere;
 
 	nlohmann::json getDealWith(sqlite3_stmt *stmt, std::vector<std::string> fields);
+
 };	
