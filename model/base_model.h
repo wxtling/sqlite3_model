@@ -36,11 +36,11 @@ public:
 	// 查询
 	nlohmann::json get(int id = 0); 
 	nlohmann::json first(int id = 0); // 第一条
-	std::string value(std::string field, const std::string &defaultValue = "");// 
+	std::string value(std::string field, const std::string &defaultValue = ""); // 
 
 	
 	// 删除
-	bool del(int id = 0);
+	bool del(int id);
 
 	// 全部删除
 	bool deleteAll();  
